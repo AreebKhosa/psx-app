@@ -1,5 +1,7 @@
+import os
 import asyncio
 from datetime import datetime, time as dtime
+from aiohttp import web
 from loguru import logger
 
 from config import PKT
@@ -27,17 +29,13 @@ class PSXScheduler:
         self.candle_builder = CandleBuilder()
 
     def is_market_hours(self) -> bool:
-        """Checks if current time is Monday-Friday between 09:15 AM and 03:35 PM PKT."""
         now = datetime.now(PKT)
-        if now.weekday() >= 5:  # Saturday & Sunday closed
+        if now.weekday() >= 5:
             return False
         return dtime(9, 15) <= now.time() <= dtime(15, 35)
 
-    # =========================================================================
-    # 1. LIVE WORKERS (Active ONLY during market hours)
-    # =========================================================================
+    # --- Live Workers ---
     async def task_trading_board(self):
-        """Streams live 2.5s depth and ticker prices during market hours."""
         logger.info("🟢 Trading Board worker initialized.")
         while True:
             try:
@@ -45,14 +43,12 @@ class PSXScheduler:
                     await self.trading_scraper.scrape_and_broadcast()
                     await asyncio.sleep(2.5)
                 else:
-                    # Market closed: sleep for 60 seconds
                     await asyncio.sleep(60.0)
             except Exception as e:
                 logger.error(f"Error in Trading Board: {e}")
                 await asyncio.sleep(5.0)
 
     async def task_market_indices(self):
-        """Streams live 10s index points (KSE100, KMI30) during market hours."""
         logger.info("🟢 Market Indices worker initialized.")
         while True:
             try:
@@ -66,7 +62,6 @@ class PSXScheduler:
                 await asyncio.sleep(10.0)
 
     async def task_candle_builder(self):
-        """Builds 1-minute OHLC candlestick snapshots every 60s during market hours."""
         logger.info("🟢 1-Minute Candle Builder initialized.")
         while True:
             try:
@@ -78,7 +73,6 @@ class PSXScheduler:
                 await asyncio.sleep(10.0)
 
     async def task_sector_analytics(self):
-        """Computes sector & index valuations every 60s during market hours."""
         logger.info("🟢 Sector Valuations worker initialized.")
         while True:
             try:
@@ -91,14 +85,9 @@ class PSXScheduler:
                 logger.error(f"Error in Sector Analytics: {e}")
                 await asyncio.sleep(15.0)
 
-    # =========================================================================
-    # 2. DAILY PRE-MARKET SYNC (Runs once a day at 08:30 AM PKT before open)
-    # =========================================================================
+    # --- Daily Sync ---
     async def task_daily_pre_market_sync(self):
-        """Runs heavy syncs (Profiles, Financials, Ratios, Index Weightages) at 08:30 AM."""
         logger.info("🟢 Daily Pre-Market Sync scheduled for 08:30 AM PKT.")
-        
-        # Initial run on server start
         await self._run_full_daily_sync()
 
         while True:
@@ -111,31 +100,40 @@ class PSXScheduler:
             logger.info(f"⏳ Next Pre-Market Sync in {round(wait_seconds / 3600, 1)} hours.")
             await asyncio.sleep(wait_seconds)
 
-            if datetime.now(PKT).weekday() < 5:  # Only Mon-Fri
+            if datetime.now(PKT).weekday() < 5:
                 await self._run_full_daily_sync()
 
     async def _run_full_daily_sync(self):
-        """Executes the daily deep scrape pipeline."""
         logger.info("🌅 Starting Daily Pre-Market Fundamentals & Profiles Sync...")
         try:
-            # 1. Sync Market Watch & Sectors
             await self.market_watch_scraper.scrape_and_sync()
-            # 2. Sync Index Compositions & Weightages
             await self.composition_scraper.scrape_all_indices()
-            # 3. Sync Deep Company Profiles, Financials, Ratios & VAR
             await self.profile_scraper.scrape_all_active_companies(limit=500)
-            # 4. Compute Initial Valuations
             self.sector_engine.compute_and_cache_all()
             logger.info("🚀 Daily Pre-Market Sync Completed Successfully!")
         except Exception as e:
             logger.error(f"Error during Daily Pre-Market Sync: {e}")
 
-    # =========================================================================
-    # MASTER RUNNER
-    # =========================================================================
+    # --- Free Web Server for Render Health Check ---
+    async def start_http_server(self):
+        async def handle_health(request):
+            return web.Response(text="Scraper is running 24/7 healthy!")
+
+        app = web.Application()
+        app.router.add_get("/", handle_health)
+        app.router.add_get("/healthz", handle_health)
+
+        port = int(os.getenv("PORT", 10000))
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        logger.info(f"🌐 Free Health server listening on port {port}")
+
     async def start(self):
-        logger.info("🚀 Starting PSX Platform Ingestion & Analytics Engine...")
+        logger.info("🚀 Starting PSX Platform Ingestion & Analytics Engine on Free Tier...")
         await asyncio.gather(
+            self.start_http_server(),
             self.task_trading_board(),
             self.task_market_indices(),
             self.task_candle_builder(),
