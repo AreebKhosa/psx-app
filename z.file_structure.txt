@@ -1,0 +1,96 @@
+psx-platform-backend/
+│
+├── .env.example                               # Env variables template
+├── .gitignore                                 # Git ignore rules
+├── package.json                               # Workspace dependencies & run scripts
+├── README.md                                  # Documentation & deployment guides
+│
+│
+├── services/
+│   └── 1-scraper-analytics/                   # 🐍 [SERVER 1] Python Ingestion & AI Worker
+│       ├── scrapers/
+│       │   ├── __init__.py
+│       │   ├── psx_market.py                  # Live depth, indices & market watch
+│       │   └── financial_news.py              # Financial news scraper (placeholder)
+│       ├── analytics/
+│       │   ├── __init__.py
+│       │   └── ratio_calculator.py            # P/E, P/B, ROE & Sector valuation engine
+│       ├── database/
+│       │   ├── __init__.py
+│       │   └── db_writer.py                   # Writes raw data to DB & Redis
+│       ├── scheduler.py                       # Master async worker runner
+│       ├── config.py                          # Python app configs
+│       └── requirements.txt                   # Python dependencies
+│
+│
+├── src/                                       # 🚀 [SERVER 2] Unified Express API (Load Balanced)
+│   │
+│   ├── modules/                               # Feature-based business modules
+│   │   │
+│   │   ├── auth/                              # 🔐 Authentication Module
+│   │   │   ├── controllers/
+│   │   │   │   └── auth.controller.js         # Signup, login, OTP verify, reset password
+│   │   │   ├── services/
+│   │   │   │   └── auth.service.js            # Password hashing, JWT & Redis OTP logic
+│   │   │   └── routes/
+│   │   │       └── auth.routes.js             # /api/v1/auth
+│   │   │
+│   │   ├── community/                         # 👥 Community & Social Module
+│   │   │   ├── controllers/
+│   │   │   │   ├── post.controller.js         # Create, like, comment, delete post
+│   │   │   │   ├── community.controller.js    # Create & join investor communities
+│   │   │   │   └── page.controller.js         # Stock page handlers ($OGDC, $LUCK)
+│   │   │   ├── services/
+│   │   │   │   ├── post.service.js            # Post logic & tag parser ($TICKER)
+│   │   │   │   ├── feed.service.js            # Algorithmic timeline generator
+│   │   │   │   └── community.service.js       # Community membership management
+│   │   │   └── routes/
+│   │   │       ├── post.routes.js             # /api/v1/community/posts
+│   │   │       ├── community.routes.js        # /api/v1/community/groups
+│   │   │       └── page.routes.js             # /api/v1/community/pages
+│   │   │
+│   │   └── trading/                           # 📈 Trading, Charts & Portfolio Module
+│   │       ├── controllers/
+│   │       │   ├── chart.controller.js        # OHLC chart data & technical indicators
+│   │       │   ├── compare.controller.js      # Stock vs KSE100 / Sector compare
+│   │       │   ├── paperTrade.controller.js   # Buy/Sell mock orders (Market/Limit)
+│   │       │   └── portfolio.controller.js    # User portfolio tracking & P&L
+│   │       ├── services/
+│   │       │   ├── chart.service.js           # Indicators computation (RSI, MACD, MA)
+│   │       │   ├── compare.service.js         # Sector & index comparison normalizer
+│   │       │   ├── orderEngine.service.js     # Executes paper trades on live prices
+│   │       │   └── portfolio.service.js       # Real-time P&L & asset allocation analytics
+│   │       └── routes/
+│   │           ├── chart.routes.js            # /api/v1/trading/charts
+│   │           ├── paperTrade.routes.js       # /api/v1/trading/orders
+│   │           └── portfolio.routes.js        # /api/v1/trading/portfolio
+│   │
+│   │
+│   ├── shared/                                # 🌐 Shared Utilities & Middlewares
+│   │   ├── config/
+│   │   │   ├── db.js                          # PostgreSQL connection pool (UUIDs)
+│   │   │   ├── redis.js                       # Redis client setup
+│   │   │   ├── env.js                         # Env variables validator
+│   │   │   └── schema.sql                     # Full SQL database schema
+│   │   ├── security/
+│   │   │   ├── realIp.middleware.js           # Real IP resolver behind proxies
+│   │   │   ├── rateLimiter.js                 # Redis distributed rate limiter
+│   │   │   ├── appIntegrity.middleware.js     # HMAC signature check (anti-bot)
+│   │   │   ├── ipBlocklist.middleware.js      # Redis IP ban & blocklist
+│   │   │   └── sanitize.middleware.js         # XSS & SQL/NoSQL injection cleaner
+│   │   ├── middlewares/
+│   │   │   ├── auth.middleware.js             # JWT bearer verification
+│   │   │   ├── upload.middleware.js           # Multer file upload handling
+│   │   │   ├── validate.middleware.js         # Request validator (Zod/Joi)
+│   │   │   └── error.middleware.js            # Global error handler
+│   │   ├── services/
+│   │   │   ├── redis.service.js               # Redis get/set/pubsub helpers
+│   │   │   ├── imageUpload.service.js         # Cloudinary/S3 image uploader
+│   │   │   ├── email.service.js               # Nodemailer OTP email dispatcher
+│   │   │   └── logger.service.js              # Structured console logger
+│   │   └── constants/
+│   │       ├── sectors.js                     # 38 PSX Sectors with macro drivers
+│   │       ├── psxTickers.js                  # PSX stock ticker list
+│   │       └── responseCodes.js               # Standard HTTP & error codes
+│   │
+│   └── server.js                              # Main entry point (Load Balancer /healthz)
